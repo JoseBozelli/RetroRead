@@ -2,7 +2,10 @@
 __pycache__/
 *.pyc
 data/raw/
-data/processed/
+data/processed/*
 .env
 *.egg-info/
-.DS_Storegit add
+.DS_Store
+
+# Exception: keep processed-data manifests (small, human-readable provenance), but not image outputs
+!data/processed/*.csv
