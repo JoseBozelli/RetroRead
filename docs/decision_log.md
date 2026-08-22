@@ -27,3 +27,26 @@ identical hash to one that was kept), not a data-altering edit, and is
 fully reconstructable by re-downloading the original archive. The empty
 frame files were left in place in `data/raw` and are filtered out only in
 `data/processed`.
+
+---
+### Aalborg angle.npy reference values — resolved
+
+**Observation:** `alpha.npy`/`beta.npy` were uniformly zero across all 7
+gauges (purpose still unconfirmed). Alignment check (`scripts/check_aalborg_alignment.py`)
+showed `angle.npy` frame indices align correctly with "4 Test of videos"
+filenames, but `0.0` values are heavily concentrated (man2: 99%, man5: 70%,
+man6: 18%) and correlate with `errorfile.txt`-flagged frames — confirming
+`0.0` is a "detection failed" sentinel from the original algorithm, not a
+real angle reading.
+
+**Decision:** `angle.npy` values are used as an optional `reference_angle`
+column in the processed manifest, populated only when the value is
+non-zero. Explicitly documented as the original paper's own classical
+algorithm output — a comparison point, not verified ground truth.
+`alpha.npy`/`beta.npy` remain unused. man2 and man5 will have substantially
+reduced reference-angle coverage as a result; this is reported transparently
+per-gauge rather than papered over.
+
+**Consequence:** Real-world case-study table will show a `reference_angle`
+column that is blank for a meaningful fraction of man2/man5 frames — by
+design, not by bug.

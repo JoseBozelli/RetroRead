@@ -12,12 +12,24 @@ Run from the repo root with:
 """
 
 import csv
+import re
 import shutil
+import numpy as np
 from pathlib import Path
 
 RAW_DIR = Path("data/raw/Aalborg/4 Test of videos")
+ANGLE_DIR = Path("data/raw/Aalborg/5 Data from run on raw videos")
 OUT_DIR = Path("data/processed/aalborg_clean")
 MANIFEST_PATH = Path("data/processed/aalborg_clean_manifest.csv")
+
+FRAME_PATTERN = re.compile(r"_(\d+)\.png$")
+
+def load_angle_array(gauge_name: str) -> np.ndarray | None:
+    """Load angle.npy for a gauge, if it exists. Returns None if missing."""
+    angle_path = ANGLE_DIR / f"data {gauge_name}" / "angle.npy"
+    if not angle_path.exists():
+        return None
+    return np.load(angle_path)
 
 def build_clean_dataset() -> None:
     if not RAW_DIR.exists():
@@ -40,6 +52,8 @@ def build_clean_dataset() -> None:
         out_gauge_dir = OUT_DIR / gauge_name
         out_gauge_dir.mkdir(parents=True, exist_ok=True)
 
+        angle_array = load_angle_array(gauge_name)
+
         png_files = sorted(gauge_dir.glob("*.png"))
 
         for png_path in png_files:
@@ -54,6 +68,15 @@ def build_clean_dataset() -> None:
             shutil.copy2(png_path, dest_path)
             total_kept += 1
 
+            # Look up a reference angle from the original paper's algorithm output, if available.
+            # 0.0 is a "no reading" sentinel in this data, not a real angle - treat it as missing, not as a value.
+            reference_angle = ""
+            match = FRAME_PATTERN.search(png_path.name)
+            if match and angle_array is not None:
+                frame_idx = int(match.group(1))
+                if frame_idx < len(angle_array) and angle_array[frame_idx] != 0.0:
+                    reference_angle = float(angle_array[frame_idx])
+
             manifest_rows.append(
                 {
                     "gauge": gauge_name,
@@ -61,12 +84,13 @@ def build_clean_dataset() -> None:
                     "source_path": str(png_path),
                     "processed_path": str(dest_path),
                     "size_bytes": size_bytes,
+                    "reference_angle": reference_angle,
                 }
             )
 
     with MANIFEST_PATH.open("w", newline="") as f:
         writer = csv.DictWriter(
-            f, fieldnames=["gauge", "filename", "source_path", "processed_path", "size_bytes"]
+            f, fieldnames=["gauge", "filename", "source_path", "processed_path", "size_bytes", "reference_angle"]
         )
         writer.writeheader()
         writer.writerows(manifest_rows)

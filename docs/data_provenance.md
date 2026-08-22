@@ -32,9 +32,29 @@ any cleaning/deduplication steps applied.
   and 175 empty/corrupted PNG frames out of 532 (filtered out during
   processing, not deleted from `data/raw`). See `docs/decision_log.md` for
   full cleaning details and per-gauge usable frame counts.
-- **Unused in this project:** `1 Training videos/`, `2 Test videos/`,
-  `3 Misc handheld videos/` (raw/edited video, not extracted frames),
-  `5 Data from run on raw videos/` (contains `angle.npy`/`alpha.npy`/
-  `beta.npy` per gauge — likely ground-truth or algorithm output from the
-  original paper; **to be investigated** as a possible ground-truth source
-  for the real-world case-study table before evaluation).
+- **Unused folders and why:**
+  - `1 Training videos/`, `2 Test videos/`, `3 Misc handheld videos/` —
+    raw and edited video files (.mov/.mp4), not extracted image frames.
+    RetroRead's MVP scope is static-image gauge reading, so no frame
+    extraction was performed from these; the "4 Test of videos" folder
+    already provides pre-extracted frames, which is a closer match to our
+    actual use case (photo, not video, input).
+  - `5 Data from run on raw videos/` — investigated via
+    `scripts/inspect_npy_files.py`. Contains, per gauge: `alpha.npy` and
+    `beta.npy` (uniformly zero across all 7 gauges — purpose unknown,
+    likely unused/deprecated output channels; **not used**), `angle.npy`
+    (real-valued angle readings in radians, one per raw video frame — this
+    is the original paper's own classical image-processing algorithm
+    output, **not independently verified ground truth**), and
+    `errorfile.txt` (frame indices where the original algorithm failed to
+    produce a reading).
+  - **Decision:** `angle.npy` will be used only as a *reference/comparison*
+    value ("does RetroRead's output agree with a published prior method's
+    output on the same frame?"), never presented as ground truth. Whether
+    frame indices in `angle.npy` and `errorfile.txt` actually align with
+    the specific frames sampled in "4 Test of videos" has not yet been
+    verified — **open question**, to be checked before this data is used
+    in any evaluation table. If alignment can't be confirmed, this folder
+    will be excluded from evaluation entirely and the real-world case
+    study will rely on manual reading of the "4 Test of videos" frames
+    instead.
