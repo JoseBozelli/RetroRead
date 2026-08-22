@@ -50,3 +50,17 @@ per-gauge rather than papered over.
 **Consequence:** Real-world case-study table will show a `reference_angle`
 column that is blank for a meaningful fraction of man2/man5 frames — by
 design, not by bug.
+
+---
+### Endava bbox annotation scope
+
+**Observation:** The `bbox` field in Endava's COCO annotations covers only
+the dial face (glass + markings), not the full physical gauge including its
+outer bezel. Confirmed by drawing bbox overlays on sample images — the
+bezel visibly extends beyond the annotated box on some images.
+
+**Decision:** Any edge-proximity or framing checks based on `bbox` use a
+generous margin (15%) as a buffer for the unlabeled bezel, since the bezel's
+true extent isn't directly annotated. Development sample image selected
+using this corrected filter: `data/v_0992_f_0000_rgba.png` (verified
+visually to have the full bezel inside the frame).
