@@ -22,6 +22,7 @@ sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.classical_baseline import draw_circle_overlay, find_gauge_circle
 
 from retroread.config import ENDAVA_DS5_IMAGES_DIR 
+from retroread.mlflow_setup import configure_tracking
 
 IMAGE_PATH = str(ENDAVA_DS5_IMAGES_DIR / "data" / "v_0992_f_0000_rgba.png")
 OVERLAY_OUTPUT =  "experiment_00_overlay.png"
@@ -36,6 +37,7 @@ HOUGH_PARAMS = {
 }
 
 def main() -> None:
+    configure_tracking()
     mlflow.set_experiment("retroread_classical_baseline")
 
     with mlflow.start_run(run_name="exp00_circle_detection"):

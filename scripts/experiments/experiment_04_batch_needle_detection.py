@@ -26,7 +26,7 @@ sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.annotations import bbox_touches_edge, load_complete_annotations
 from retroread.classical_baseline import find_gauge_circle
 from retroread.needle_detection import detect_needle
-
+from retroread.mlflow_setup import configure_tracking
 from retroread.config import ENDAVA_DS5_TRAIN_KPTS_COCO as COCO_PATH, ENDAVA_DS5_IMAGES_DIR as IMAGES_DIR
 
 RESULTS_CSV = Path("experiment_04_results.csv")
@@ -119,6 +119,7 @@ def main() -> None:
     mean_angle_error = sum(angle_errors) / len(angle_errors) if angle_errors else None
     mean_tip_error = sum(tip_errors) / len(tip_errors) if tip_errors else None
 
+    configure_tracking()
     mlflow.set_experiment("retroread_classical_baseline")
     with mlflow.start_run(run_name="exp04_batch_needle_detection"):
         mlflow.log_params(CIRCLE_PARAMS)

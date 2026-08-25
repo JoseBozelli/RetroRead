@@ -26,7 +26,7 @@ def _find_project_root(start: Path) -> Path:
 sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.classical_baseline import find_gauge_circle
 from retroread.needle_detection import detect_needle, draw_needle_overlay
-
+from retroread.mlflow_setup import configure_tracking
 from retroread.config import ENDAVA_DS5_IMAGES_DIR 
 
 IMAGE_PATH = str(ENDAVA_DS5_IMAGES_DIR / "data" / "v_0992_f_0000_rgba.png")
@@ -53,6 +53,7 @@ NEEDLE_PARAMS = {
 }
 
 def main() -> None:
+    configure_tracking()
     mlflow.set_experiment("retroread_classical_baseline")
 
     with mlflow.start_run(run_name="exp03_needle_detection_single_image"):
