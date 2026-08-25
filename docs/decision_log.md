@@ -64,3 +64,40 @@ generous margin (15%) as a buffer for the unlabeled bezel, since the bezel's
 true extent isn't directly annotated. Development sample image selected
 using this corrected filter: `data/v_0992_f_0000_rgba.png` (verified
 visually to have the full bezel inside the frame).
+
+---
+### Classical baseline — max_radius_fraction tuning (Experiments 01–02)
+
+**Observation:** Experiment 01 (default max_radius_fraction=0.6) achieved
+100% detection rate but only 94.3% accuracy (250/265) against bbox-center
+comparison, mean error 11.8px. Visual inspection of 5 inaccurate cases
+showed a consistent pattern: the detected circle was centered on large
+background structures (warehouse roof trusses, industrial piping) rather
+than the gauge, likely because the permissive max radius allowed these
+larger background patterns to outscore the actual gauge circle.
+
+**Decision:** Tightened max_radius_fraction to 0.35 (Experiment 02).
+Detection rate unchanged (100%), accuracy improved to 97.7% (259/265),
+mean error dropped to 6.6px. Adopted as the new default in
+`find_gauge_circle`.
+
+**Consequence:** 6 remaining inaccurate cases not further investigated at
+this stage — deferred to the full Section 15 error analysis once needle
+detection and reading conversion exist, since categorizing a circle-only
+failure in isolation would need to be redone once the complete pipeline
+is in view.
+
+---
+### Classical baseline — needle detection (Experiments 03–04)
+
+**Observation:** Single-image test (Exp03) initially misidentified the
+needle's counterweight as the pointer; fixed by selecting the Hough line
+candidate by maximum reach from center rather than raw segment length.
+Batch validation (Exp04) against real ground truth (COCO `dial_tip`
+keypoint, not an approximation) achieved 95.8% needle detection rate,
+90.9% angle accuracy within 5°, mean angle error 4.44°.
+
+**Decision:** Accepted as the classical baseline's needle-detection
+component. Remaining failures (11 non-detections, borderline-accuracy
+cases) deferred to the full Section 15 error analysis rather than
+investigated individually now.

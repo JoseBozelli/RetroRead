@@ -16,13 +16,21 @@ Run from the repo root with:
 """
 
 import json
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-COCO_PATH = Path("data/raw/Endava/sample_synth_datasets/ds5.0/train__kpts_coco.json")
-IMAGES_DIR = Path("data/raw/Endava/sample_synth_datasets/ds5.0")
+def _find_project_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("Could not find project root (no pyproject.toml found).")
+
+sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
+
+from retroread.config import ENDAVA_DS5_TRAIN_KPTS_COCO as COCO_PATH, ENDAVA_DS5_IMAGES_DIR as IMAGES_DIR
 
 EXPECTED_KEYPOINT_COUNT = 4  # needle tip, center, scale min, scale max
 
