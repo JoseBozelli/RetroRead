@@ -9,3 +9,6 @@ data/processed/*
 
 # Exception: keep processed-data manifests (small, human-readable provenance), but not image outputs
 !data/processed/*.csv
+
+mlruns/
+mlflow.db
