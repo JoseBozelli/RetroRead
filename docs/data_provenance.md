@@ -58,3 +58,22 @@ any cleaning/deduplication steps applied.
     will be excluded from evaluation entirely and the real-world case
     study will rely on manual reading of the "4 Test of videos" frames
     instead.
+
+--- 
+## Reproducing this project's data setup
+
+1. Download both datasets from the URLs above (manual download — Kaggle
+   requires an authenticated session; no automated download script exists
+   yet, see note below).
+2. Unzip each into `data/raw/`, preserving these exact folder names:
+   - `data/raw/Endava/` (containing `sample_synth_datasets/`, `ReadMe.md`, etc.)
+   - `data/raw/Aalborg/` (containing the numbered folders `1 Training videos/` through `5 Data from run on raw videos/`)
+3. Verify checksums match the values recorded above.
+4. Run `uv sync` to install exact locked dependencies.
+5. Run `scripts/build_aalborg_clean.py` to regenerate the processed Aalborg dataset and manifest.
+
+**Note:** automated download via the Kaggle API is a possible future
+improvement (would require a Kaggle API key, stored in `.env`, not
+committed) — out of scope for the current MVP.
+
+---

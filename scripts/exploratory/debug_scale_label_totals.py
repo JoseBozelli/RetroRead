@@ -1,0 +1,32 @@
+import sys
+import json
+from pathlib import Path
+
+def _find_project_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("Could not find project root (no pyproject.toml found).")
+
+sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
+
+from retroread.config import ENDAVA_DS5_TRAIN_KPTS_COCO as COCO_PATH
+
+with COCO_PATH.open() as f:
+    coco = json.load(f)
+
+scale_label_cat = next((c for c in coco["categories"] if c["name"] == "scale-label"), None)
+cat_id = scale_label_cat["id"]
+
+all_matches = [a for a in coco["annotations"] if a["category_id"] == cat_id]
+print(f"Total scale-label annotations across entire file: {len(all_matches)}")
+
+if all_matches:
+    print("\nFirst match, full contents:")
+    for k, v in all_matches[0].items():
+        if isinstance(v, list) and len(v) > 10:
+            print(f" {k}: [list of {len(v)} items, omitted]")
+        elif isinstance(v, dict):
+            print(f" {k}: {{dict, omitted}}")
+        else:
+            print(f" {k}: {v}")

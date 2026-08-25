@@ -13,12 +13,20 @@ Run from the repo root with:
 """
 
 import re
+import sys
 from pathlib import Path
 
 import numpy as np
 
-FRAMES_DIR = Path("data/raw/Aalborg/4 Test of videos")
-DATA_DIR = Path("data/raw/Aalborg/5 Data from run on raw videos")
+def _find_project_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("Could not find project root (no pyproject.toml found).")
+
+sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
+
+from retroread.config import AALBORG_TEST_FRAMES_DIR as FRAMES_DIR, AALBORG_ANGLE_DATA_DIR as DATA_DIR
 
 FRAME_PATTERN = re.compile(r"_(\d+)\.png$")
 

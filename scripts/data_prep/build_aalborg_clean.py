@@ -12,15 +12,21 @@ Run from the repo root with:
 """
 
 import csv
+import sys
 import re
 import shutil
 import numpy as np
 from pathlib import Path
 
-RAW_DIR = Path("data/raw/Aalborg/4 Test of videos")
-ANGLE_DIR = Path("data/raw/Aalborg/5 Data from run on raw videos")
-OUT_DIR = Path("data/processed/aalborg_clean")
-MANIFEST_PATH = Path("data/processed/aalborg_clean_manifest.csv")
+def _find_project_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("Could not find project root (no pyproject.toml found).")
+
+sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
+
+from retroread.config import AALBORG_TEST_FRAMES_DIR as RAW_DIR, AALBORG_CLEAN_DIR as OUT_DIR, AALBORG_CLEAN_MANIFEST as MANIFEST_PATH, AALBORG_ANGLE_DATA_DIR as ANGLE_DIR
 
 FRAME_PATTERN = re.compile(r"_(\d+)\.png$")
 
