@@ -71,3 +71,61 @@ def bbox_touches_edge(candidate: dict, margin_fraction: float = 0.15) -> bool:
     too_close_bottom = (y + h) > (img_h - margin_y)
 
     return too_close_left or too_close_top or too_close_right or too_close_bottom
+
+def load_reading_annotations(coco_path) -> dict:
+    """
+    Load the FULL coco.json (not the kpts-only subset) and group annotations by image_id, extracting everything needed
+    for reading conversion: dial center/tip (from face_plate keypoints), scale-label calibration points (position +
+    known value), and the true gauge reading (dial.synth_dial_value).
+
+    Returns: {image_id: {"file_name", "center_x", "center_y", "tip_x", "tip_y", "scale_labels": [{"x", "y", "value}, 
+    ...], "true_value"}}
+    Images missing any required piece are skipped, not included in the result.
+    """
+    import json
+    from pathlib import Path
+
+    with Path(coco_path).open() as f:
+        coco = json.load(f)
+
+    image_id_to_filename = {img["id"]: img["file_name"] for img in coco["images"]}
+
+    by_image: dict = {}
+    for image_id in image_id_to_filename:
+        by_image[image_id] = {
+            "file_name": image_id_to_filename[image_id],
+            "scale_labels": []
+        }
+
+    for ann in coco["annotations"]:
+        image_id = ann["image_id"]
+        category = ann.get("category_name")
+
+        if category == "face_plate":
+            keypoints = ann.get("keypoints", [])
+            if len(keypoints) >= 12:
+                by_image[image_id]["center_x"] = keypoints[6]
+                by_image[image_id]["center_y"] = keypoints[7]
+                by_image[image_id]["tip_x"] = keypoints[9]
+                by_image[image_id]["tip_y"] = keypoints[10]
+
+        elif category == "scale-label":
+            x, y, w, h = ann["bbox"]
+            by_image[image_id]["scale_labels"].append(
+                {"x": x + w / 2, "y": y + h / 2, "value": ann["synth_value"]}
+            )
+
+        elif category == "dial":
+            by_image[image_id]["true_value"] = ann["synth_dial_value"]
+
+    # Keep only images with everthing required.
+    complete = {}
+    for image_id, data in by_image.items():
+        has_center = "center_x" in data
+        has_tip = "tip_x" in data
+        has_true_value = "true_value" in data
+        has_enough_labels = len(data["scale_labels"]) >= 2
+        if has_center and has_tip and has_true_value and has_enough_labels:
+            complete[image_id] = data
+
+    return complete
