@@ -1,6 +1,6 @@
 # Classical CV Baseline - Experiment Results
 
-Auto-generated from MLflow tracking data (9 runs).Regenerate with 'uv run python scripts/reporting/export_experiment_summary.py' after any new experiment. Full interactive tracking (artifacts, overlay images, per-run comparison) is available locally via 'uv run mlflow ui' after reproducing the data setup -- see docs/data_provenance.md
+Auto-generated from MLflow tracking data (12 runs).Regenerate with 'uv run python scripts/reporting/export_experiment_summary.py' after any new experiment. Full interactive tracking (artifacts, overlay images, per-run comparison) is available locally via 'uv run mlflow ui' after reproducing the data setup -- see docs/data_provenance.md
 
 ## exp00_circle_detection
 
@@ -166,5 +166,3 @@ Auto-generated from MLflow tracking data (9 runs).Regenerate with 'uv run python
 - 'mean_raw_error': 0.3425
 - 'median_pct_error': 2.8699
 - 'needle_detection_rate': 0.9585
-
----
