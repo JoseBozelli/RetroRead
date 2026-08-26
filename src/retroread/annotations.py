@@ -8,25 +8,31 @@ from pathlib import Path
 
 EXPECTED_KEYPOINT_COUNT = 4     # neeedle tip, center, scale min, and scale max
 
+def _load_coco(coco_path) -> dict:
+    with Path(coco_path).open() as f:
+        return json.load(f)
+
+def _build_image_id_info(coco: dict) -> dict:
+    return {
+        img["id"]: {"file_name": img["file_name"], "width": img["width"], "height": img["height"]}
+        for img in coco["images"]
+    }
+
+def _count_visible_keypoints(keypoints: list) -> int:
+    return sum(1 for i in range(2, len(keypoints), 3) if keypoints[i] == 2)
+
 def load_complete_annotations(coco_path: Path) -> list[dict]:
     """
     Load COCO annotations, keeping only entries with all expected keypoints labeled and visible,
     plus a bbox and image dimensions attached.
     """
-    with coco_path.open() as f:
-        coco = json.load(f)
-
-    image_id_to_info = {
-        img["id"]: {"file_name": img["file_name"], "width": img["width"], "height": img["height"]}
-        for img in coco["images"]
-    }
+    coco = _load_coco(coco_path)
+    image_id_to_info = _build_image_id_info(coco)
 
     complete = []
     for ann in coco["annotations"]:
         keypoints = ann.get("keypoints", [])
-        # COCO keypoints are stored as flat [x1, y1, v1, x2, y2, v2, ...];
-        # v (visibility) == 2 means "labeled and visible".
-        n_visible = sum(1 for i in range(2, len(keypoints), 3) if keypoints[i] == 2)
+        n_visible = _count_visible_keypoints(keypoints)
 
         bbox = ann.get("bbox")  # [x, y, width, height]; covers dial face only, not full bezel
         image_info = image_id_to_info.get(ann["image_id"])
@@ -82,13 +88,8 @@ def load_reading_annotations(coco_path) -> dict:
     ...], "true_value"}}
     Images missing any required piece are skipped, not included in the result.
     """
-    import json
-    from pathlib import Path
-
-    with Path(coco_path).open() as f:
-        coco = json.load(f)
-
-    image_id_to_filename = {img["id"]: img["file_name"] for img in coco["images"]}
+    coco = _load_coco(coco_path)
+    image_id_to_filename = {img_id: info["file_name"] for img_id, info in _build_image_id_info(coco).items()}
 
     by_image: dict = {}
     for image_id in image_id_to_filename:
@@ -129,3 +130,39 @@ def load_reading_annotations(coco_path) -> dict:
             complete[image_id] = data
 
     return complete
+
+def load_keypoint_training_data(coco_path) -> list[dict]:
+    """
+    Load train__kpts_coco.json and extract all 4 keypoints (dial_max, dial_min, dial_center, dial_tip), normalized
+    to [0, 1] by image size, in the order the model outputs them: center, tip, min, max.
+
+    Returns: list of {"file_name", "image_width", "image_height", "target": [cx, cy, tx, ty, minx, miny, maxx, maxy], 
+    "bbox", "image_width", "image_height"} for images with all 4 keypoints visible.
+    """
+    coco = _load_coco(coco_path)
+    image_id_to_info = _build_image_id_info(coco)
+
+    results = []
+    for ann in coco["annotations"]:
+        keypoints = ann.get("keypoints", [])
+        n_visible = _count_visible_keypoints(keypoints)
+        image_info = image_id_to_info.get(ann["image_id"])
+        bbox = ann.get("bbox")
+
+        if n_visible >= EXPECTED_KEYPOINT_COUNT and bbox is not None and image_info is not None:
+            w, h = image_info["width"], image_info["height"]
+            # keypoint order: index 0 dial_max, 1 dial_min, 2 dial_center, 3 dial_tip
+            max_x, max_y = keypoints[0] / w, keypoints[1] / h
+            min_x, min_y = keypoints[3] / w, keypoints[4] / h
+            center_x, center_y = keypoints[6] / w, keypoints[7] / h
+            tip_x, tip_y = keypoints[9] / w, keypoints[10] / h
+
+            results.append({
+                "file_name": image_info["file_name"],
+                "image_width": w,
+                "image_height": h,
+                "bbox": bbox,
+                "target": [center_x, center_y, tip_x, tip_y, min_x, min_y, max_x, max_y]
+            })
+
+    return results
