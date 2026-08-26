@@ -4,19 +4,11 @@ Not a full error analysis (that comes later, once the full baseline exists) - ju
 that nothing systematic is wrong before adding needle detection on top.
 
 Run from the repo root with:
-    uv run python scripts/inspect_innacurate_detections.py
+    uv run python scripts/exploratory/inspect_innacurate_detections.py
 """
 import csv
-import sys
 from pathlib import Path
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.classical_baseline import CircleDetection, draw_circle_overlay
 
 RESULTS_CSV = Path("experiment_01_results.csv")

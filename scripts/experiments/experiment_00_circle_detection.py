@@ -5,22 +5,12 @@ Hypothesis: the Hough Circle Transform can reliably locate the gauge face in a r
 using default parameters expressed as fractions of image size.
 
 Run from the repo root with:
-    uv run python scripts/experiment_00_circle_detection.py
+    uv run python scripts/experiments/experiment_00_circle_detection.py
 """
 
-import sys
 import mlflow
-from pathlib import Path
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.classical_baseline import draw_circle_overlay, find_gauge_circle
-
 from retroread.config import ENDAVA_DS5_IMAGES_DIR 
 from retroread.mlflow_setup import configure_tracking
 

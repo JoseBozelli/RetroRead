@@ -8,21 +8,13 @@ Accuracy check: since bbox covers only the dial face, its center should still cl
 Compares each detected circle's center against the bbox center as an approximate correctness signal.
 
 Run from the repo root with:
-    uv run python scripts/experiment_01_batch_circle_detection.py
+    uv run python scripts/experiments/experiment_01_batch_circle_detection.py
 """
 import csv
-import sys
 from pathlib import Path
 
 import mlflow
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.annotations import bbox_touches_edge, load_complete_annotations
 from retroread.classical_baseline import find_gauge_circle
 from retroread.mlflow_setup import configure_tracking

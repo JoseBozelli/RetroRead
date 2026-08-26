@@ -4,20 +4,11 @@ Inspect the .npy files in data/raw/Aalborg/5 Data from run on raw videos/.
 Purpose: figure out what these files actually contain (shape, dtype, sample, values)
 before deciding whether they can serve as ground-truth readings for the real-world case-study evaluation.
 
-Run from the repo root with uv run python scripts/inspect_npy_files.py
+Run from the repo root with uv run python scripts/exploratory/inspect_npy_files.py
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 
 from retroread.config import AALBORG_ANGLE_DATA_DIR as RAW_DIR
 

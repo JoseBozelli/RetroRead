@@ -9,21 +9,13 @@ Single-image check first, same pattern as Experiment 00 -- confirm the approach 
 across the full candidate set.
 
 Run from the repor root with:
-    uv run python scripts/experiment_03_needle_detection.py
+    uv run python scripts/experiments/experiment_03_needle_detection.py
 """
 
-import sys
 from pathlib import Path
 
 import mlflow
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.classical_baseline import find_gauge_circle
 from retroread.needle_detection import detect_needle, draw_needle_overlay
 from retroread.mlflow_setup import configure_tracking

@@ -10,22 +10,14 @@ One parameter changed from Experiment 01: max_radius_fraction (0.6 -> 0.35).
 Everything else held constant for a clean comparsion.
 
 Run from the repo root with:
-    uv run python scripts/experiment_02_tighter_radius.py
+    uv run python scripts/experiments/experiment_02_tighter_radius.py
 """
 
 import csv
-import sys
 from pathlib import Path
 
 import mlflow
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.annotations import bbox_touches_edge, load_complete_annotations
 from retroread.classical_baseline import find_gauge_circle
 from retroread.mlflow_setup import configure_tracking

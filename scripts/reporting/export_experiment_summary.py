@@ -10,20 +10,11 @@ Run from the repo root with:
     uv run python scripts/reporting/export_experiment_summary.py
 """
 
-import sys
 from pathlib import Path
 
 import mlflow
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-PROJECT_ROOT = _find_project_root(Path(__file__).resolve())
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 EXPERIMENT_NAME = "retroread_classical_baseline"
 OUTPUT_PATH = PROJECT_ROOT / "docs" / "experiment_results.md"
 

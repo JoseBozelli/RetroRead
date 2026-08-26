@@ -8,23 +8,13 @@ What this does:
 - Writes a manifest CSV recording every kept frame, for reproducibility
 
 Run from the repo root with:
-    uv run python scrilpts/build_aalborg_clean.py
+    uv run python scripts/data_prep/build_aalborg_clean.py
 """
 
 import csv
-import sys
 import re
 import shutil
 import numpy as np
-from pathlib import Path
-
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 
 from retroread.config import AALBORG_TEST_FRAMES_DIR as RAW_DIR, AALBORG_CLEAN_DIR as OUT_DIR, AALBORG_CLEAN_MANIFEST as MANIFEST_PATH, AALBORG_ANGLE_DATA_DIR as ANGLE_DIR
 

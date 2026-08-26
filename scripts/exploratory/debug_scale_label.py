@@ -3,19 +3,10 @@ Diagnostic: inspect the 'scale-label' category's annotation to find where the ga
 scale range (min-max values) is stored.
 
 Run from the repo root with:
-    uv run python scripts/debug_scale_label.py
+    uv run python scripts/exploratory/debug_scale_label.py
 """
-import sys
 import json
 from pathlib import Path
-
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 
 from retroread.config import ENDAVA_DS5_TRAIN_KPTS_COCO as COCO_PATH
 

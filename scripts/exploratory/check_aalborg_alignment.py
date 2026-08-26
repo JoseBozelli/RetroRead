@@ -9,22 +9,13 @@ the frames we actually have, and whether errorfile.txt explains the empty
 PNG frames found in folder 4.
 
 Run from the repo root with:
-    uv run python scripts/check_aalborg_alignment.py
+    uv run python scripts/exploratory/check_aalborg_alignment.py
 """
 
 import re
-import sys
 from pathlib import Path
 
 import numpy as np
-
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 
 from retroread.config import AALBORG_TEST_FRAMES_DIR as FRAMES_DIR, AALBORG_ANGLE_DATA_DIR as DATA_DIR
 

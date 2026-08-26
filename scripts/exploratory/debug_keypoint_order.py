@@ -3,20 +3,12 @@ Diagnostic: find the keypoint ordering (which index in the flat keypoints array 
 named point) from the COCO categories definition.
 
 Run from the repo root with:
-    uv run python scripts/debug_keypoing_order.py
+    uv run python scripts/exploratory/debug_keypoing_order.py
 """
 
-import sys
 import json
 from pathlib import Path
 
-def _find_project_root(start: Path) -> Path:
-    for parent in [start] + list(start.parents):
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("Could not find project root (no pyproject.toml found).")
-
-sys.path.insert(0, str(_find_project_root(Path(__file__).resolve()) / "src"))
 from retroread.config import ENDAVA_DS5_TRAIN_KPTS_COCO as COCO_PATH
 
 def main() -> None:
