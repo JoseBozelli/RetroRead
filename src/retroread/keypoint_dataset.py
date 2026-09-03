@@ -8,12 +8,18 @@ implementing__len__ (how many examples) and __getitem__ (fetch example i) is all
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from torchvision.models import MobileNet_V3_Small_Weights
+from torchvision import transforms
 
-# Same preprocessing the pretrained backbone expects -- resize, crop, normalize pixel values to match what it was
-# orignally trained on.
+# Custom preprocessing: resize only, NO crop. The pretrained weight's default transform crops to 224x224, which
+# can cut off keypoints that sit off-center -- since our target coordinates are normalized against the FULL original
+# image, any crop invalidates that mapping. A pure resize preserves it: a point at normalized (x,y) in the original
+# stays at (x,y) after uniform resizing, since nothing is cut away.
 
-PREPROCESS = MobileNet_V3_Small_Weights.DEFAULT.transforms()
+PREPROCESS = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
 class GaugeKeypointDataset(Dataset):
     def __init__(self, samples: list[dict], images_dir):
