@@ -166,3 +166,34 @@ def load_keypoint_training_data(coco_path) -> list[dict]:
             })
 
     return results
+
+def load_keypoint_training_data_raw(coco_path) -> list[dict]:
+    """
+    Like load_keypoint_training_data, but keeps keypoints in RAW PIXEL units, not normalized by image size --
+    needed for crop-based training, where normalization must happen relative to the crop region, not the full
+    original image.
+    """
+    coco = _load_coco(coco_path)
+    image_id_to_info = _build_image_id_info(coco)
+
+    results = []
+    for ann in coco["annotations"]:
+        keypoints = ann.get("keypoints", [])
+        n_visible = _count_visible_keypoints(keypoints)
+        image_info = image_id_to_info.get(ann["image_id"])
+        bbox = ann.get("bbox")
+
+        if n_visible >= EXPECTED_KEYPOINT_COUNT and bbox is not None and image_info is not None:
+            max_x, max_y = keypoints[0], keypoints[1]
+            min_x, min_y = keypoints[3], keypoints[4]
+            center_x, center_y = keypoints[6], keypoints[7]
+            tip_x, tip_y = keypoints[9], keypoints[10]
+
+            results.append({
+                "file_name": image_info["file_name"],
+                "image_width": image_info["width"],
+                "image_height": image_info["height"],
+                "bbox": bbox,
+                "keypoints_px": [center_x, center_y, tip_x, tip_y, min_x, min_y, max_x, max_y]
+            })
+    return results

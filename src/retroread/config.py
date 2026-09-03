@@ -19,6 +19,7 @@ ENDAVA_DIR = DATA_RAW_DIR / "Endava"
 ENDAVA_DS5_DIR = ENDAVA_DIR / "sample_synth_datasets" / "ds5.0"
 ENDAVA_DS5_IMAGES_DIR = ENDAVA_DS5_DIR  # file_name in COCO already includes "data/" prefix
 ENDAVA_DS5_TRAIN_KPTS_COCO = ENDAVA_DS5_DIR / "train__kpts_coco.json"
+ENDAVA_DS5_VAL_KPTS_COCO = ENDAVA_DS5_DIR / "val__kpts_coco.json"
 ENDAVA_DS5_COCO = ENDAVA_DS5_DIR / "coco.json"
 
 ENDAVA_DS6_DIR = ENDAVA_DIR / "sample_synth_datasets" / "ds6.0"
