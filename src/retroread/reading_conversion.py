@@ -27,6 +27,7 @@ def fit_scale_calibration(center_x: float, center_y: float, scale_labels: list[d
     increasing / decreasing sequence rather than one that resets at +/- 180 degrees -- so a false jump at that boundary
     does not distort the fit.
     """
+    scale_labels = sorted(scale_labels, key=lambda p: p["value"])
     if len(scale_labels) < 2:
         raise ValueError("At least 2 scale-label calibration points are required.")
 
