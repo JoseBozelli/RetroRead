@@ -58,7 +58,7 @@ def find_gauge_circle(
     )
 
     if circles is None:
-        return Cir(found=False)
+        return CircleDetection(found=False)
 
     circles = np.round(circles[0, :]).astype(int)
     x, y, r = circles[0]

@@ -97,8 +97,7 @@ if "points" not in st.session_state:
 st.subheader("Calibration")
 st.caption(
     "Each marked point needs the number printed on the gauge at that spot. "
-    "Click anywhere on the image to mark an unmarked tick. "
-    "Points can be marked in any order."
+    "Click anywhere on the image to mark an unmarked tick."
 )
 
 annotated_display = draw_markers(display_image, st.session_state["points"])
