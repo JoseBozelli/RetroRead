@@ -197,3 +197,40 @@ def load_keypoint_training_data_raw(coco_path) -> list[dict]:
                 "keypoints_px": [center_x, center_y, tip_x, tip_y, min_x, min_y, max_x, max_y]
             })
     return results
+
+def load_needle_segmentation_data(coco_path) -> list[dict]:
+    """
+    Loads needle (category 'dial') segmentation, plus face_plate
+    bbox/center and the true reading, for the needle-segmentation model
+    (Experiment 22). Returns RAW RLE segmentation dicts, decoded lazily
+    per-sample in the dataset class -- decoding all masks upfront would
+    be memory-heavy for ~1000 full-resolution masks.
+    """
+    coco = _load_coco(coco_path)
+    image_id_to_info = _build_image_id_info(coco)
+
+    by_image = {}
+    for image_id in image_id_to_info:
+        by_image[image_id] = {"file_name": image_id_to_info[image_id]["file_name"]}
+
+    for ann in coco["annotations"]:
+        image_id = ann["image_id"]
+        category = ann.get("category_name")
+
+        if category == "dial":
+            by_image[image_id]["needle_segmentation_rle"] = ann["segmentation"]
+            by_image[image_id]["true_value"] = ann["synth_dial_value"]
+
+        elif category == "face_plate":
+            keypoints = ann.get("keypoints", [])
+            bbox = ann.get("bbox")
+            if len(keypoints) >= 12 and bbox is not None:
+                by_image[image_id]["center_x"] = keypoints[6]
+                by_image[image_id]["center_y"] = keypoints[7]
+                by_image[image_id]["bbox"] = bbox
+
+    complete = []
+    for image_id, data in by_image.items():
+        if "needle_segmentation_rle" in data and "center_x" in data and "bbox" in data:
+            complete.append(data)
+    return complete
