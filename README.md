@@ -4,7 +4,9 @@
 analog gauge reading.**
 
 RetroRead converts photographs of legacy analog gauges into numeric
-readings. Two fundamentally different approaches were developed and
+readings. 
+![RetroRead Streamlit UI](docs/images/app_screenshot.png)
+Two fundamentally different approaches were developed and
 rigorously evaluated: a geometric computer-vision pipeline (Hough
 Transform) and a deep-learning keypoint/pose-estimation system. After nine
 tracked DL architectures, a chain of root-caused failures and fixes, and a
