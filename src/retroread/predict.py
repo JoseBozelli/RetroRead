@@ -14,7 +14,8 @@ import cv2
 from retroread.classical_baseline import CircleDetection, find_gauge_circle
 from retroread.needle_detection import NeedleDetection, detect_needle
 from retroread.params import CIRCLE_PARAMS, NEEDLE_PARAMS
-from retroread.reading_conversion import ScaleCalibration, angle_to_value
+from retroread.reading_conversion import ScaleCalibration, angle_to_value, fit_scale_calibration
+
 
 @dataclass
 class GaugeReading:
@@ -24,6 +25,29 @@ class GaugeReading:
     reason: str     | None = None
     circle: CircleDetection | None = None
     needle: NeedleDetection | None = None
+
+def _calibration_is_plausible(calibration, points: list[dict], center_x: float, center_y: float) -> bool:
+    """
+    Sanity check for OCR-derived calibration: for each calibration point,
+    recompute its predicted value from its own angle through the fitted
+    line, and reject the calibration if that self-consistency error is
+    large. A garbled OCR digit tends to distort the fit badly enough to
+    fail this check even though the fit always mathematically "succeeds."
+    """
+    import math
+    from retroread.reading_conversion import angle_to_value
+
+    values = [p["value"] for p in points]
+    scale_range = max(values) - min(values)
+    if scale_range <= 0:
+        return False
+
+    for p in points:
+        angle = math.atan2(p["y"] - center_y, p["x"] - center_x)
+        predicted = angle_to_value(angle, calibration)
+        if abs(predicted - p["value"]) / scale_range > 0.05:  # more than 5% of scale range off from itself
+            return False
+    return True
 
 def image_sharpness(image_path: str) -> float:
     """Variance of Laplacian -- higher means sharper. See pick_sample_image.py for the same metric."""
@@ -69,11 +93,11 @@ def compute_confidence(
     return 0.9 * length_score + 0.1 * sharpness_score
 
 def read_gauge(
-        image_path: str,
-        calibration: ScaleCalibration,
-        confidence_threshold: float = 0.85,     # empirically chosen; see Experiment 19
-        circle_params: dict | None = None,
-        needle_params: dict | None = None,
+    image_path: str,
+    calibration: ScaleCalibration | None = None,
+    confidence_threshold: float = 0.85,  # empirically chosen; see Experiment 19
+    circle_params: dict | None = None,
+    needle_params: dict | None = None,
 ) -> GaugeReading:
     circle_params = circle_params or CIRCLE_PARAMS
     needle_params = needle_params or NEEDLE_PARAMS
@@ -81,6 +105,19 @@ def read_gauge(
     circle = find_gauge_circle(image_path, **circle_params)
     if not circle.found:
         return GaugeReading(status="unable_to_read", reason="gauge_not_detected", circle=circle)
+
+    if calibration is None:
+        from retroread.ocr_calibration import detect_scale_labels
+        ocr_points = detect_scale_labels(image_path, circle)
+        if len(ocr_points) < 2:
+            return GaugeReading(
+                status="unable_to_read", reason="auto_calibration_failed", circle=circle
+            )
+        calibration = fit_scale_calibration(circle.center_x, circle.center_y, ocr_points)
+        if not _calibration_is_plausible(calibration, ocr_points, circle.center_x, circle.center_y):
+            return GaugeReading(
+                status="unable_to_read", reason="auto_calibration_implausible", circle=circle
+            )
 
     needle = detect_needle(image_path, circle, **needle_params)
     if not needle.found:
@@ -96,3 +133,85 @@ def read_gauge(
 
     reading = angle_to_value(needle.angle_rad, calibration)
     return GaugeReading(status="ok", reading=reading, confidence=confidence, circle=circle, needle=needle)
+
+@dataclass
+class EnsembleGaugeReading(GaugeReading):
+    source: str | None = None            # "agreement", "classical_confident", "yolo_refiner_confident"
+    classical_reading: float | None = None
+    yolo_refiner_reading: float | None = None
+
+
+def read_gauge_ensemble(
+    image_path: str,
+    calibration: ScaleCalibration,
+    yolo_model,
+    refiner_model,
+    agreement_threshold_pct: float = 5.0,
+    confidence_threshold: float = 0.85,
+    circle_params: dict | None = None,
+    needle_params: dict | None = None,
+) -> EnsembleGaugeReading:
+    """
+    Production ensemble: runs both the classical pipeline and YOLO+refiner,
+    and combines them via an agreement/confidence gate -- validated (paired
+    error analysis) to beat either system alone. yolo_model and
+    refiner_model are passed in already-loaded, since both are expensive
+    to construct and should be reused across calls, not reloaded per image.
+    """
+    from retroread.yolo_refiner_pipeline import get_yolo_refiner_angle
+
+    circle_params = circle_params or CIRCLE_PARAMS
+    needle_params = needle_params or NEEDLE_PARAMS
+
+    circle = find_gauge_circle(image_path, **circle_params)
+    if not circle.found:
+        return EnsembleGaugeReading(status="unable_to_read", reason="gauge_not_detected")
+
+    # --- Classical ---
+    needle = detect_needle(image_path, circle, **needle_params)
+    classical_reading = None
+    classical_confidence = 0.0
+    if needle.found:
+        sharpness = image_sharpness(image_path)
+        classical_confidence = compute_confidence(circle, needle, sharpness)
+        classical_reading = angle_to_value(needle.angle_rad, calibration)
+
+    # --- YOLO + refiner ---
+    from PIL import Image
+    image = Image.open(image_path).convert("RGB")
+    circle_bbox = [circle.center_x - circle.radius, circle.center_y - circle.radius,
+                    circle.radius * 2, circle.radius * 2]
+    from retroread.crop_heatmap_dataset import compute_crop_box
+    crop_x0, crop_y0, crop_x1, crop_y1 = compute_crop_box(circle_bbox, image.width, image.height)
+    cropped = image.crop((int(crop_x0), int(crop_y0), int(crop_x1), int(crop_y1)))
+
+    yolo_angle = get_yolo_refiner_angle(image_path, cropped, (crop_x0, crop_y0), yolo_model, refiner_model)
+    yolo_reading = angle_to_value(yolo_angle, calibration) if yolo_angle is not None else None
+
+    # --- Combine ---
+    if classical_reading is None and yolo_reading is None:
+        return EnsembleGaugeReading(status="unable_to_read", reason="both_systems_failed", circle=circle, needle=needle)
+    if classical_reading is None:
+        return EnsembleGaugeReading(status="ok", reading=yolo_reading, source="yolo_refiner_only",
+                                     yolo_refiner_reading=yolo_reading, circle=circle, needle=needle)
+    if yolo_reading is None:
+        return EnsembleGaugeReading(status="ok", reading=classical_reading, source="classical_only",
+                                     confidence=classical_confidence, classical_reading=classical_reading,
+                                     circle=circle, needle=needle)
+
+    values = [s for s in [calibration.reference_values[0], calibration.reference_values[-1]]]
+    scale_range = abs(values[-1] - values[0]) or 1.0
+    disagreement_pct = abs(classical_reading - yolo_reading) / scale_range * 100
+
+    if disagreement_pct <= agreement_threshold_pct:
+        chosen, source = classical_reading, "agreement"
+    elif classical_confidence >= confidence_threshold:
+        chosen, source = classical_reading, "classical_confident"
+    else:
+        chosen, source = yolo_reading, "yolo_refiner_confident"
+
+    return EnsembleGaugeReading(
+        status="ok", reading=chosen, source=source, confidence=classical_confidence,
+        classical_reading=classical_reading, yolo_refiner_reading=yolo_reading,
+        circle=circle, needle=needle,
+    )
