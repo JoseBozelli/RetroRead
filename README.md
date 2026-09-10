@@ -89,6 +89,15 @@ POST an image + calibration points to `/predict`. See
 `scripts/exploratory/get_calibration_for_demo.py` for a helper that prints
 ready-to-use calibration points for any image in the dataset.
 
+Run the Streamlit UI:
+
+```bash
+uv run streamlit run app.py
+```
+Upload a gauge photo, calibrate by reading the numbers OCR marks on the
+image (or click to add points it missed), and get a reading from the
+production ensemble.
+
 Run tests:
 
 ```bash
@@ -125,8 +134,8 @@ configs/                   # custom model architecture definitions (P2-YOLO-Pose
 - **Synthetic training data:** Endava's synthetic gauge dataset (CC BY-NC-SA
   4.0), 1,000 rendered images with full COCO-format annotations (keypoints,
   segmentation masks, scale-label calibration points).
-- **Real-world validation:** Aalborg Pressure Gauge Reader Data (CC BY-SA
-  4.0), cleaned and manifest-tracked.
+- **Real-world validation:** a small case study using genuine photographed
+  gauges — see `docs/real_world_case_study.md` for methodology and findings.
 
 Full provenance, checksums, and licensing: [`docs/data_provenance.md`](docs/data_provenance.md).
 
@@ -167,6 +176,10 @@ Full provenance, checksums, and licensing: [`docs/data_provenance.md`](docs/data
 - Real-world validation is a small, targeted case study (see
   `docs/error_analysis.md`), not exhaustive coverage of all gauge types
   and conditions.
+- - **Dual-scale gauges** (two concentric scales in different units on one
+  dial) are not represented in training data and cause both classical and
+  DL systems to independently misread — a specific, real-world-validated
+  finding, see `docs/real_world_case_study.md`.
 
 ## Deferred future work
 
