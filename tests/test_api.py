@@ -1,18 +1,33 @@
 """
 Basic API tests: health check, and /predict's structured responses for
-invalid input and a real image with real calibration points.
+invalid input and well-formed input. Uses a synthetic in-memory image,
+not the licensed Endava dataset -- these tests must pass on a fresh clone
+without any dataset download, since none of them depend on real gauge
+content (calibration-rejection tests are content-independent; the
+well-formed-input test only checks the response shape, not reading
+accuracy -- that's covered by the experiment scripts' evaluation).
 
 Run with: uv run pytest tests/test_api.py
 """
 
+import io
 import json
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from retroread.api import app
-from retroread.config import ENDAVA_DS5_IMAGES_DIR
 
 client = TestClient(app)
+
+
+def make_test_image_bytes() -> bytes:
+    """A trivial in-memory image -- content doesn't matter for these tests."""
+    image = Image.new("RGB", (400, 400), color="white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer.read()
 
 
 def test_health():
@@ -22,13 +37,12 @@ def test_health():
 
 
 def test_predict_rejects_insufficient_calibration_points():
-    image_path = ENDAVA_DS5_IMAGES_DIR / "data/v_0992_f_0000_rgba.png"
-    with open(image_path, "rb") as f:
-        response = client.post(
-            "/predict",
-            files={"image": ("gauge.png", f, "image/png")},
-            data={"calibration_points": json.dumps([{"x": 100, "y": 100, "value": 0}])},
-        )
+    image_bytes = make_test_image_bytes()
+    response = client.post(
+        "/predict",
+        files={"image": ("gauge.png", image_bytes, "image/png")},
+        data={"calibration_points": json.dumps([{"x": 100, "y": 100, "value": 0}])},
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "unable_to_read"
@@ -36,32 +50,27 @@ def test_predict_rejects_insufficient_calibration_points():
 
 
 def test_predict_rejects_invalid_json():
-    image_path = ENDAVA_DS5_IMAGES_DIR / "data/v_0992_f_0000_rgba.png"
-    with open(image_path, "rb") as f:
-        response = client.post(
-            "/predict",
-            files={"image": ("gauge.png", f, "image/png")},
-            data={"calibration_points": "not valid json"},
-        )
+    image_bytes = make_test_image_bytes()
+    response = client.post(
+        "/predict",
+        files={"image": ("gauge.png", image_bytes, "image/png")},
+        data={"calibration_points": "not valid json"},
+    )
     assert response.status_code == 200
     assert response.json()["reason"] == "invalid_calibration_json"
 
 
-def test_predict_returns_reading_for_valid_input():
-    image_path = ENDAVA_DS5_IMAGES_DIR / "data/v_0992_f_0000_rgba.png"
-    # Rough calibration points -- this test checks the endpoint completes
-    # and returns a well-formed response, not reading accuracy (that's
-    # covered by the experiment scripts' evaluation, not unit tests).
+def test_predict_returns_well_formed_response_for_valid_input():
+    image_bytes = make_test_image_bytes()
     calibration_points = [
-        {"x": 400, "y": 500, "value": 0},
-        {"x": 700, "y": 500, "value": 10},
+        {"x": 100, "y": 200, "value": 0},
+        {"x": 300, "y": 200, "value": 10},
     ]
-    with open(image_path, "rb") as f:
-        response = client.post(
-            "/predict",
-            files={"image": ("gauge.png", f, "image/png")},
-            data={"calibration_points": json.dumps(calibration_points), "unit": "bar"},
-        )
+    response = client.post(
+        "/predict",
+        files={"image": ("gauge.png", image_bytes, "image/png")},
+        data={"calibration_points": json.dumps(calibration_points), "unit": "bar"},
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["status"] in ("ok", "unable_to_read")

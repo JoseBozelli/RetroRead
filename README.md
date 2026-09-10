@@ -188,3 +188,8 @@ Full provenance, checksums, and licensing: [`docs/data_provenance.md`](docs/data
 See `docs/deep_learning.md` §10 for the full list, including a corrected
 P2-YOLO-Pose implementation, directional conditioning for the tip refiner,
 and crop-jitter-trained needle segmentation.
+
+## License
+
+Code is MIT licensed (see `LICENSE`). Datasets have their own separate
+licenses — see `docs/data_provenance.md`.
