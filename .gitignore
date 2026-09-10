@@ -19,3 +19,4 @@ runs/
 data/processed/yolo_pose/
 data/processed/yolo_predictions_cache.json
 
+data/real_world_samples/
