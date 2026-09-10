@@ -14,3 +14,8 @@ mlruns/
 mlflow.db
 
 *.pt
+
+runs/
+data/processed/yolo_pose/
+data/processed/yolo_predictions_cache.json
+

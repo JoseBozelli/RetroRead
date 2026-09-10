@@ -1,244 +1,288 @@
 # Deep Learning: Keypoint Model — Full Experimentation Record
 
-This document covers the complete deep learning effort for RetroRead's gauge-reading
-pipeline: hypotheses, architectural decisions, quantitative results, failed
-experiments, a post-hoc audit that changed the final conclusion, limitations,
-model selection, and deferred future work. It is written to stand alongside
-`docs/decision_log.md` and `docs/error_analysis.md` as the authoritative record
-of this project's DL work.
+This document covers the complete deep learning and hybrid-architecture effort
+for RetroRead's gauge-reading pipeline. For the complete scannable list of
+every experiment run, see `docs/experiment_master_table.md`. This document
+tells the narrative: what was tried, why, what was found, and how the final
+architecture was reached.
 
 ---
 
 ## 1. Goal and hypothesis
 
-Predict the same four keypoints the classical baseline relies on — dial center,
+Predict the same keypoints the classical baseline relies on — dial center,
 needle tip, scale minimum, scale maximum — using a small pretrained CNN
 (MobileNetV3-Small), transfer-learned given the project's CPU-only, one-week
-constraints. The question: can a learned approach match or exceed the classical
-Hough-Transform baseline's reading accuracy?
+constraints. The original question: can a learned approach match or exceed
+the classical Hough-Transform baseline's reading accuracy? That question
+evolved considerably over the course of the investigation — see §7.
 
 ---
 
-## 2. Experiment progression
+## 2. Architecture search (v1–v6)
 
-### v1 — Flattened coordinate regression (Experiments 07–10)
+Six architectures were tried in direct succession, each diagnosed and each
+motivating the next:
 
-Frozen backbone → global average pool → flatten → dense layers → 8 raw
-coordinates, trained with MSE loss.
+- **v1 — flattened coordinate regression.** Failed (9.0% / 38.9%).
+  Root cause: `Flatten()` after global pooling discards spatial information.
+- **v2 — heatmap decoder.** Preserved spatial structure via upsampling
+  instead of flattening. Substantial improvement (46.5% / 12.09%).
+- **v3 — crop-staged + skip connection + combined loss.** Cropped to the
+  gauge region first, added decoder resolution and a skip connection,
+  combined heatmap + coordinate loss. Best result at this stage
+  (54.1% / 7.28%).
+- **v4 — backbone fine-tuning.** Controlled test of domain adaptation
+  (differential learning rates, more unfrozen layers). Regressed
+  (47.5% / 8.88%) — validation loss improved while downstream accuracy
+  worsened, a clean example of proxy-metric/target-metric divergence.
+- **v5 — reading-aware auxiliary loss.** Added a loss term directly
+  penalizing final reading error. Regressed severely (14.8% / 25.63%) —
+  root-caused to an objective mismatch: the training-time calibration
+  approximation didn't match the production calibration function.
+- **Post-hoc audit.** Two cheap, no-retraining diagnostics before declaring
+  v3 final: a soft-argmax temperature sweep (default temperature was
+  already optimal — the jointly-trained model had adapted its heatmap
+  amplitudes specifically for it) and a ground-truth-crop vs.
+  detected-crop ablation, which revealed a real, separate, fixable
+  problem: **crop-domain shift**. With an idealized crop, the same v3
+  model reached 65.6% / 4.36% — already better than classical on mean
+  error.
+- **v6 — crop-jitter augmentation.** Trained on deliberately perturbed
+  crops instead of only ground-truth ones, directly targeting the
+  crop-domain-shift finding. Confirmed the hypothesis: 67.2% / 5.52%,
+  closing most of the gap between the oracle and deployment numbers.
 
-**Result: 9.0% within-tolerance, 38.9% mean error** (full 200-image val set).
-Diagnosis: `Flatten()` after global pooling discards all spatial information —
-the head has no signal for *where* in the image a feature came from, only
-*that* it occurred somewhere. Confirmed by inspecting predictions directly:
-outputs clustered near one location regardless of the input image's actual
-content.
-
-### v2 — Heatmap-based prediction (Experiments 11–12)
-
-Replaced flatten+regression with a spatial decoder: the backbone's feature map
-is upsampled back through transposed convolutions, producing one small
-heatmap per keypoint (a 2D likelihood map), decoded via soft-argmax (a
-differentiable weighted-average position).
-
-**Result: 46.5% within-tolerance, 12.09% mean error** (full 200-image val set) —
-after fixing an implementation bug along the way (see §5). A real, substantial
-improvement, confirming the flatten diagnosis.
-
-### v3 — Crop-staged, higher-resolution decoder, skip connection, combined loss (Experiments 13–14)
-
-Three changes together, motivated by: (a) the model was asked to localize
-within a full, cluttered 1024×1024 scene rather than a tightly-framed gauge —
-unlike the classical baseline, which only reasons about the region it already
-detected; (b) the decoder's coarsest layer (7×7) limits achievable precision;
-(c) heatmap-shape loss alone doesn't directly penalize the coordinate error
-that actually matters.
-
-Changes: (1) crop to the gauge region (ground-truth bbox + 15% margin,
-matching the classical baseline's known bezel-margin finding) before the
-model ever sees the image; (2) a third upsampling stage (7→14→28→56) with one
-skip connection from an earlier, higher-resolution backbone layer; (3) a
-combined loss (heatmap MSE + weighted coordinate L1 via soft-argmax).
-
-**Result: 54.1% within-tolerance, 7.28% mean error** (61-image fair subset,
-matching the classical baseline's own edge-filtered evaluation range — see
-§6 on comparison methodology). Best DL result achieved.
-
-### v4 — Backbone fine-tuning experiments (Experiments 15–16)
-
-Two controlled sub-experiments testing whether adapting more of the
-pretrained backbone would close the remaining gap to classical:
-
-- Differential LR on the single already-unfrozen block: **no improvement.**
-- Unfreezing 3 backbone blocks with a three-tier LR structure (very low for
-  newly-unfrozen layers, low for the existing block, unchanged for the
-  head): **54.1% → 47.5%, mean error 7.28% → 8.88% — regressed.**
-
-Notably, validation *loss* improved throughout this run while downstream
-*reading accuracy* got worse — the clearest instance in this project of loss
-and the true target metric diverging. Rejected; reverted to the v3 checkpoint.
-
-### v5 — Reading-aware auxiliary loss (Experiments 17–18)
-
-Added a third loss term explicitly computing a differentiable approximation
-of the final reading and penalizing its distance from the true value,
-motivated by: the classical baseline's needle-detection logic is implicitly
-reading-aware (it selects lines by *reach from the pivot*, not raw length,
-because that's what the angle calculation needs) — the DL model had no
-equivalent signal.
-
-**Result: 14.8% within-tolerance, 25.63% mean error — severely regressed**,
-despite training-time reading error looking good (~6%).
-
-**Root cause (post-hoc audit): objective mismatch, not a training failure.**
-The training-time reading-loss used a *simplified two-point calibration*
-(model's predicted center/tip, ground-truth min/max keypoints, linear
-interpolation) — mathematically different from the evaluation pipeline's
-*actual* calibration (`fit_scale_calibration` against ground-truth center and
-**all** scale-label text positions, a richer multi-point fit). Decreasing the
-training-time approximation did not guarantee improving the real evaluation
-metric, because they were not the same function. This is a legitimate,
-informative negative result: it demonstrates that a reading-aware loss must
-use the *exact* production reading calculation, not a simplified stand-in, or
-risk optimizing the wrong target entirely. Not pursued further.
+Full details for each in `docs/experiment_master_table.md`.
 
 ---
 
-## 3. Post-hoc audit: was 54.1% actually the ceiling?
+## 3. Representation experiments (v7 and beyond)
 
-Before finalizing v3 as the best result, two cheap, no-retraining diagnostics
-were run directly against the existing checkpoint, prompted by a review of
-the evaluation methodology:
+Following a broader literature review of gauge-reading systems, several
+different problem *representations* were tested against the same base
+architecture, to answer: **what should a learned system actually predict**,
+not just how should it be shaped?
 
-**Soft-argmax temperature sweep.** Theoretical concern: with heatmap values
-near `[0,1]` and default temperature, spatial softmax over a 56×56 grid could
-be too diffuse to concentrate probability at the true peak, pulling
-predictions toward the grid center. Tested temperatures 1–50 and hard argmax
-against the same checkpoint. **Result: temperature=1 (the training-time
-default) was optimal; every sharper setting degraded accuracy**, in one case
-nearly tripling the error. The theoretical concern was legitimate, but the
-model — trained with `soft_argmax_decode` at temperature=1 embedded directly
-in its coordinate loss — had already adapted its heatmap amplitudes to be
-well-calibrated specifically for that decode setting. Post-hoc sharpening
-fought against that learned calibration rather than improving it. Hypothesis
-tested and rejected by evidence, not by reasoning alone.
+- **Needle segmentation + center heatmap.** Hypothesis: a full pixel mask
+  aggregates evidence more robustly than a single predicted tip coordinate.
+  Result: 67.2% / 6.80% — tied accuracy with v6, worse mean error. Training
+  loss was still decreasing at the epoch budget's end (unlike every prior
+  architecture, which had clearly plateaued or begun overfitting) —
+  documented as possibly undertrained, not pursued further given project
+  time constraints.
+- **Multi-task model (mask + center + scale landmarks), fully end-to-end
+  calibration.** Closed the previously-noted gap of always calibrating
+  against ground-truth scale positions. Result: catastrophic (8.2% / 71.06%).
+  Root cause, a genuine structural finding: a 2-point calibration's slope is
+  *multiplicatively* sensitive to landmark position error — a small
+  landmark miss that would be minor for a needle tip becomes severe when
+  it defines the entire measuring scale.
+- **sin/cos angle regression.** Hypothesis: predicting orientation directly,
+  avoiding coordinate localization and the 359°/1° wraparound discontinuity.
+  Result: 44.3% / 16.88% (after fixing an unstable-training bug with a
+  `tanh` output activation). Demonstrates the real interpretability cost of
+  this representation: unlike every other model, it never localizes
+  anything — if wrong, there's no way to inspect why.
+- **Direct end-to-end numeric regression.** Included specifically to show
+  why geometry-aware approaches are preferred. Result: 32.8% / 17.23%, as
+  expected by design.
 
-**Crop-domain shift.** The model trains exclusively on ground-truth bbox
-crops, but Experiments 14/16/18 evaluate using the classical circle
-detector's crop instead (the realistic deployment path — no ground-truth
-annotation exists for real photos). This conflates two different questions:
-"how good is the model's landmark prediction" vs. "how good is the full
-detector+model pipeline." Evaluated both, holding decoding fixed at t=1:
+---
 
-| Evaluation condition | Within ±5% | Mean % scale error |
+## 4. Pose estimation paradigm: YOLO
+
+A different detection framework entirely — single-shot object
+detection + pose estimation (Ultralytics YOLOv8-pose), fine-tuned on the
+project's cropped-gauge dataset.
+
+- **Result: 72.1% / 5.14%** — the best DL result to this point, closest yet
+  to classical (80.3% / 4.82%).
+- **Per-keypoint error diagnostic** (no retraining): center localization
+  error, not tip error, most distinguished accurate from inaccurate
+  readings (11.86px→18.18px vs. 17.22px→20.54px) — a refinement of the
+  initial hypothesis, not an overturning of it.
+- **P2-YOLO-Pose** (added a higher-resolution, stride-4 detection/pose
+  scale, following a specific literature precedent for gauge reading):
+  collapsed to 24.6% / 13.29%. Root-caused precisely: adding the new
+  branch shifted every subsequent layer's index, which broke Ultralytics'
+  name-based pretrained-weight matching — only 44% of weights transferred
+  vs. 91% for the unmodified architecture. This is a real, fixable
+  implementation defect, not a rejection of the P2 hypothesis, and is
+  left as documented future work rather than re-attempted given project
+  time.
+
+### The oracle ablation — the single most important diagnostic in this project
+
+Before building anything further, a cheap, no-retraining test: substitute
+ground truth for one predicted landmark at a time, holding the rest as
+YOLO predicted.
+
+| Substitution | Accuracy | Mean error |
 |---|---|---|
-| Classical CV baseline | 80.3% | 4.82% |
-| DL + oracle/GT crop | 65.6% | 4.36% |
-| Hybrid deployment pipeline: detected crop → DL | 54.1% | 7.28% |
+| YOLO baseline (nothing substituted) | 72.1% | 5.14% |
+| GT center substituted | 67.2% (**worse**) | 5.21% |
+| GT tip substituted | **80.3%** | **3.29%** |
+| Classical geometric center substituted | 65.6% (**worse**) | 5.63% |
 
-**Important caveat on the middle row:** "DL + oracle/GT crop" measures pointer-reading
-performance when gauge localization is idealized via the annotated crop —
-it does **not** mean the full DL landmark system (including its own predicted
-scale-min/max) achieves 4.36%. Calibration in every DL evaluation row still
-uses ground-truth scale-label positions, not the model's own min/max
-predictions (see §4). The gap between the oracle-crop and deployment rows
-(65.6%→54.1%, 4.36%→7.28%) isolates **crop-domain shift** as a real,
-specific, and — importantly — fixable source of error.
+**Two findings, both important:**
 
----
-
-## 4. Evaluation scope, stated explicitly
-
-For controlled comparison of pointer-reading performance, scale calibration
-was held fixed using ground-truth annotations (center position and all
-scale-label positions/values) in every DL evaluation. The model's predicted
-scale-min and scale-max keypoints were trained as auxiliary geometry targets
-(supervised via the heatmap and coordinate losses, alongside center/tip) but
-were **not** used in the headline reading metric. This isolates the
-comparison to pointer-angle prediction quality specifically, matching how the
-classical baseline's own evaluation (Experiments 05/06) also used a
-ground-truth center as its calibration anchor. A fully end-to-end DL
-evaluation — using the model's own predicted min/max for calibration too —
-was not performed and is noted as future work.
+1. **Tip, not center, is the dominant lever** — fixing tip alone reaches
+   classical's own accuracy and beats its mean error.
+2. **Correlated-error finding.** Substituting a *more accurate* center
+   (either ground truth, or the classical detector's own center — which
+   has measurably lower pixel error, 6.08px median vs. YOLO's 14.27px)
+   made results *worse*, not better. YOLO's center and tip predictions are
+   not independent: they carry a shared, correlated bias that partially
+   cancels in the angle calculation. Replacing one prediction independently
+   — even with something individually more accurate — breaks that
+   cancellation. This was directly tested and confirmed a second way: fusing
+   YOLO's center with a segmentation model's independently-derived tip also
+   underperformed (69.5% / 7.16%, worse than YOLO alone). Joint geometric
+   consistency between a model's own paired predictions matters more than
+   either coordinate's isolated accuracy.
 
 ---
 
-## 5. Known implementation issue (not retroactively fixed)
+## 5. The tip refiner (R1 / R2)
 
-`crop_heatmap_dataset.py`'s `make_gaussian_heatmap` target generation uses
-`grid_x = norm_x * HEATMAP_SIZE` rather than the technically correct
-`norm_x * (HEATMAP_SIZE - 1)` (valid grid indices run 0 to `HEATMAP_SIZE-1`,
-not `HEATMAP_SIZE`). This was discovered during the post-hoc decode audit.
-**Deliberately not changed in the codebase**, and no checkpoint was
-retrained against a corrected version: `best_crop_heatmap_model.pt` (and
-downstream checkpoints derived from it) were trained against the *existing*
-implementation, and silently editing the encoding now would make the current
-code no longer reproduce the reported results. This is intentional — an MLOps
-principle worth stating plainly: don't rewrite history after discovering an
-implementation defect in an already-reported result. A corrected encoding is
-listed as future work (§7), to be implemented as an explicitly separate,
-versioned path if pursued.
+The oracle ablation pointed at a specific, bounded opportunity: fix tip,
+leave center alone. Rather than build a refiner speculatively, a cheap
+feasibility check came first.
 
-A separate, smaller bug (an MLflow run mislabeled `exp14_...` instead of
-`exp18_...` in the reading-aware evaluation script) was metadata-only and
-was corrected, since it does not affect model reproducibility.
+**R1 — ROI feasibility diagnostic (no training).** For several candidate
+search-window radii, measured what fraction of images have the true tip
+within that radius of YOLO's coarse prediction, and what an oracle
+"perfect-within-window" refiner would achieve:
+
+| ROI radius | GT tip contained | Oracle accuracy | Oracle mean error |
+|---|---|---|---|
+| 16px | 42.6% | 73.8% | 4.98% |
+| 24px | 70.5% | 77.0% | 4.56% |
+| 32px | 85.2% | 77.0% | 4.44% |
+| 48px | 95.1% | 78.7% | 4.32% |
+| 64px | 96.7% | 78.7% | 4.34% |
+
+The plateau at 48px (further radius gains nothing) justified building a
+real refiner with that window, and the ceiling (78.7% / 4.32%, beating
+classical on mean error while trailing slightly on accuracy) set honest,
+pre-registered expectations before any training happened.
+
+**R2 — local high-resolution tip refiner.** A small model taking a
+128x128 pixel region (cropped from the *original full-resolution* image,
+not the downsampled gauge crop — effectively magnifying the tip several
+times over) centered on YOLO's own predicted tip, outputting a heatmap for
+the true tip's location within that window. Two design choices directly
+followed the diagnostics above: **YOLO's center is kept unchanged**
+(per the correlated-error finding), and **training data uses YOLO's own
+predicted tips on the training set, with 32-56px jitter — not
+ground-truth-centered crops** (per the earlier crop-domain-shift lesson —
+training must match the imperfect distribution the model will actually see
+at inference).
+
+**Result: 77.0% / 4.31%** — met the pre-registered success criteria
+(>=77% within-tolerance and <4.82% mean error), recovering most of R1's
+oracle upside, and beating classical on mean error.
 
 ---
 
-## 6. Final comparison and conclusion
+## 6. Final analysis: classical vs. YOLO+refiner, and the ensemble
 
-| Method | Within ±5% tolerance | Mean % scale error |
+With two strong, different systems in hand (80.3% / 4.82% classical;
+77.0% / 4.31% YOLO+refiner), the question changed from "which one wins" to
+"do they fail on the same images." A paired, per-image comparison on the
+identical 61-image fair subset:
+
+| | Count | % |
 |---|---|---|
-| **Classical CV (Hough Transform)** | **80.3%** | **4.82%** |
-| DL v1 — flattened coordinate regression | 9.0%* | 38.9%* |
-| DL v2 — heatmap decoder | 46.5%* | 12.09%* |
-| DL v3 (final) — crop-staged, skip connection, combined loss | 54.1% | 7.28% |
-| DL v3 + oracle/GT crop (diagnostic, not deployable) | 65.6% | 4.36% |
-| DL v4 — backbone fine-tuning variants | 47.5% (worse) | 8.88% (worse) |
-| DL v5 — reading-aware loss | 14.8% (worse) | 25.63% (worse) |
+| Both systems accurate | 44 | 73.3% |
+| Only classical accurate | 5 | 8.3% |
+| Only YOLO+refiner accurate | 3 | 5.0% |
+| Neither accurate | 8 | 13.3% |
 
-*v1/v2 evaluated on the full 200-image validation set, prior to restricting
-evaluation to the classical baseline's 61-image fair-comparison subset;
-directionally comparable, not precisely so. v3 onward uses the fair subset.
+**13.3% of images are cases where exactly one system succeeds and the
+other fails** — genuine complementary failure modes, not the same images
+failing for both. This justified testing a simple, zero-additional-training
+gate: if the two systems' readings agree (within 5% of scale range), trust
+classical; if they disagree, defer to whichever has higher confidence
+(reusing the existing needle-based confidence score from the abstention
+mechanism).
 
-**Conclusion.** The initial coordinate-regression architecture struggled with
-spatial localization; replacing it with heatmap-based prediction improved
-learning substantially. Cropping the input around the gauge, increasing
-heatmap resolution, adding a skip connection, and combining heatmap and
-coordinate supervision produced the strongest DL model. A post-hoc audit
-showed the model's 54.1% deployment result was partly limited by a
-train/inference crop mismatch — idealized ground-truth crops raised
-within-tolerance performance to 65.6% and lowered mean error to 4.36%.
-Additional backbone fine-tuning and a reading-aware auxiliary loss were each
-tested as targeted, well-justified final experiments; neither improved
-downstream performance, and both were rejected with documented root causes
-rather than abandoned without explanation.
-
-The classical CV baseline remains substantially more reliable at the ±5%
-acceptance threshold (80.3% vs. 54.1%) and is retained as RetroRead's
-production candidate. The DL architecture is a promising, well-diagnosed
-research direction — not deployed, because it is not yet the better system,
-not because deep learning was abandoned prematurely.
-
-This is, itself, a legitimate product decision: RetroRead's business goal is
-reliable gauge reading, not deployment of the more sophisticated algorithm
-for its own sake.
+**Result: 85.0% within tolerance, 3.32% mean error — beating both
+individual systems on both metrics**, achieved with no new training, using
+thresholds already established elsewhere in the project rather than tuned
+to this specific result.
 
 ---
 
-## 7. Deferred future work
+## 7. Final architecture
 
-- **Crop-jitter augmentation.** Train on deliberately perturbed crops
-  (position/scale jitter mimicking the classical detector's actual error
-  distribution) instead of only perfect ground-truth crops, so the model
-  learns robustness to the crop distribution it actually receives at
-  inference — directly targets the 65.6%→54.1% crop-domain-shift gap
-  identified in §3.
-- **Corrected heatmap target encoding** (`HEATMAP_SIZE - 1`), implemented as
-  an explicitly separate, versioned path rather than silently replacing the
-  current implementation (§5).
-- **Fully end-to-end DL evaluation** using the model's own predicted
-  scale-min/max for calibration, rather than ground-truth (§4) — a stricter,
-  more realistic measure of complete system performance.
-- **Reading-aware loss, corrected** to use the exact production calibration
-  function (multi-point `fit_scale_calibration`), not the simplified
-  two-point approximation that caused v5's regression.
+```
+image
+  |-- classical reader (Hough Transform geometry)
+  `-- YOLO pose + local high-resolution tip refiner
+          |
+          v
+   agreement check (within 5% of scale range)
+          |
+          |-- agree                            -> return classical's reading
+          |-- disagree, classical confident     -> return classical's reading
+          `-- disagree, classical not confident -> return YOLO+refiner's reading
+```
+
+This is the production architecture, implemented in
+`retroread.predict.read_gauge_ensemble()`.
+
+---
+
+## 8. Final comparison table
+
+| System | Within +/-5% tolerance | Mean % scale error |
+|---|---|---|
+| Classical CV alone | 80.3% | 4.82% |
+| YOLO + tip refiner alone | 77.0% | 4.31% |
+| **Ensemble (production)** | **85.0%** | **3.32%** |
+
+---
+
+## 9. Conclusion
+
+The question this project set out to answer — "can deep learning beat a
+strong classical baseline" — turned out to have a more interesting answer
+than a simple yes or no. Nine distinct DL architectures were tried; most
+underperformed classical, each for a specific, diagnosed reason (spatial
+information loss, crop-domain shift, calibration sensitivity to landmark
+error, objective mismatch, correlated joint-prediction error). The
+strongest single DL system (YOLO + local tip refiner, reached only after a
+chain of targeted, evidence-driven fixes) came close to classical but did
+not exceed it on every metric. The actual winning architecture was neither
+system alone: a simple, zero-additional-cost ensemble exploiting the fact
+that the two systems' *failures are complementary*, not correlated with
+each other.
+
+This is a genuinely different, and arguably stronger, conclusion than
+either "classical wins" or "DL wins" would have been: **model fusion based
+on diagnosed, complementary failure modes**, arrived at through rigorous
+elimination and root-causing rather than architecture shopping. Every
+rejected approach in this document was rejected with a specific,
+evidenced reason — not abandoned for looking unpromising.
+
+---
+
+## 10. Deferred future work
+
+- **Corrected P2-YOLO-Pose**, with proper weight-index remapping instead
+  of the naive layer-shift that broke pretrained transfer in this attempt.
+- **Directional conditioning for the tip refiner** (an extra input channel
+  encoding YOLO's coarse needle direction) — proposed as an optional R3
+  step if R2 needed it; R2 met its success criteria without it, so this
+  remains untested.
+- **Corrected heatmap target encoding** (`HEATMAP_SIZE - 1` vs.
+  `HEATMAP_SIZE`) — a known small implementation issue, deliberately not
+  retroactively fixed to preserve reproducibility of reported results
+  (see `docs/decision_log.md`).
+- **Needle segmentation, trained longer** — the only architecture whose
+  loss curve had not plateaued at the training budget's end.
+- **Full end-to-end evaluation** using the ensemble's own predicted
+  scale-min/max (rather than ground-truth calibration) for a stricter,
+  fully autonomous accuracy measure.
