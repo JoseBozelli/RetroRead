@@ -54,14 +54,46 @@ Static image upload → detected gauge geometry (visual overlay) → numeric rea
 
 ## Evidence
 
-*(To be filled in as the project progresses — left intentionally blank at this stage.)*
+**Note on dataset substitution:** the Cambridge SyntheticGauges/RealGauges
+dataset (Howells, Charles & Cipolla) referenced in the original framing
+below was unavailable at download time (dead hosting link). It was
+substituted with Endava's synthetic gauge dataset — see
+`docs/data_provenance.md` for full reasoning. All results below use the
+Endava dataset for synthetic evaluation.
 
-- Classical baseline performance:
-- DL model performance (in-domain synthetic):
-- DL model performance (RealGauges case-by-case):
-- DL model performance (independent CC BY real-image perception check):
-- Confidence-threshold vs. coverage vs. accuracy table:
-- Robustness matrix (perturbation type vs. degradation):
+- **Classical baseline performance:** 80.3% within ±5% tolerance, 4.82%
+  mean error (Experiment 06b, 61-image held-out validation set).
+- **DL model performance (in-domain synthetic):** nine architectures
+  tried; best single DL system (YOLO pose + local tip refiner) reached
+  77.0% / 4.31%. Full architecture search and root-causing:
+  `docs/deep_learning.md`.
+- **DL model performance (RealGauges case-by-case):** not performed —
+  RealGauges was unavailable (see dataset substitution note above).
+- **DL model performance (independent CC BY real-image perception
+  check):** the originally planned Roboflow CC BY real-image set was not
+  used. Real-world validation was instead performed on five genuine
+  photographed gauges sourced independently — see
+  `docs/real_world_case_study.md`.
+- **Confidence-threshold vs. coverage vs. accuracy table:** Experiment 19
+  — classical alone reaches 84.5% accuracy at 95.1% coverage (threshold
+  0.85). The production ensemble (classical + DL, agreement/confidence
+  gated) reaches 85.0% / 3.32% — see `docs/deep_learning.md` §6-8.
+- **Robustness matrix (perturbation type vs. degradation):** not
+  executed — an explicitly deferred, out-of-scope item. The real-world
+  case study surfaced a related, unplanned finding instead: dual-scale
+  gauges (a structural feature absent from training data) cause
+  predictable, explainable failures in both systems — see
+  `docs/real_world_case_study.md`.
+
+**On H3 (domain transfer) specifically:** the Aalborg dataset, originally
+intended as the real-world domain-transfer test, was found on inspection
+to be clean line-drawings rather than photographs (see
+`docs/data_provenance.md`) — it does not test H3 as originally framed.
+H3 was instead tested via the real-world case study above. Result: the
+ensemble generalizes well to real photographs resembling the training
+distribution, and fails in a specific, diagnosed way (dual-scale gauges)
+outside it — a partial, honestly-scoped confirmation of H3, not the
+clean "usable across the board" result originally hoped for.
 
 ## Unknowns
 

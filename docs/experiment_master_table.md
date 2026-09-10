@@ -1,9 +1,10 @@
 # RetroRead: Master Experiment Table
 
 Every experiment run in this project, in order, with why it was run, what
-happened, and what was decided. This is the complete record; `decision_log.md`
-and `deep_learning.md` narrate the reasoning in prose, this table is the
-scannable reference.
+happened, and what was decided. `decision_log.md` and `deep_learning.md`
+narrate the reasoning in prose; this table is the curated, scannable
+reference. For the raw, unfiltered MLflow tracking data behind these
+numbers, see `docs/experiment_results.md`.
 
 ## Classical CV Baseline
 

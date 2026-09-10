@@ -72,11 +72,12 @@ cd RetroRead
 uv sync
 ```
 
-Run the classical baseline on a single image:
+Run the classical baseline against the held-out validation set:
 
 ```bash
 uv run python scripts/experiments/experiment_06b_classical_baseline_val.py
 ```
+Expected output: 80.3% within-tolerance, 4.82% mean error (61 candidates).
 
 Start the API:
 
@@ -109,22 +110,23 @@ uv run pytest tests/ -v
 ## Repository structure
 
 ```
-src/retroread/          # importable package: models, datasets, pipelines, API
+src/retroread/                  # importable package: models, datasets, pipelines, API
 scripts/
-  data_prep/             # dataset acquisition and preparation
-  experiments/           # every numbered experiment (00-35), reproducible
-  exploratory/            # diagnostics, debugging, one-off analyses
-  reporting/              # MLflow summary export
+  data_prep/                    # dataset acquisition and preparation
+  experiments/                  # every numbered experiment (00-35), reproducible
+  exploratory/                  # diagnostics, debugging, one-off analyses
+  reporting/                    # MLflow summary export
 docs/
-  PRODUCT_HYPOTHESIS.md    # original problem framing and falsifiable hypotheses
-  decision_log.md          # running log of every significant decision, with rationale
-  data_provenance.md       # dataset sources, licenses, checksums
-  error_analysis.md        # classical baseline failure-mode breakdown (Section 15)
-  deep_learning.md         # full DL narrative: every architecture, why, what happened
-  experiment_master_table.md  # every experiment, scannable, one table
-  glossary.md               # terminology reference
-tests/                    # API tests
-configs/                   # custom model architecture definitions (P2-YOLO-Pose)
+  PRODUCT_HYPOTHESIS.md         # original problem framing and falsifiable hypotheses
+  decision_log.md               # running log of every significant decision, with rationale
+  data_provenance.md            # dataset sources, licenses, checksums
+  error_analysis.md             # classical baseline failure-mode breakdown (Section 15)
+  deep_learning.md              # full DL narrative: every architecture, why, what happened
+  experiment_results.md         # raw MLflow export -- unfiltered audit trail
+  experiment_master_table.md    # curated, scannable table -- why/result/decision per experiment
+  glossary.md                   # terminology reference
+tests/                          # API tests
+configs/                        # custom model architecture definitions (P2-YOLO-Pose)
 ```
 
 ---
@@ -174,9 +176,9 @@ Full provenance, checksums, and licensing: [`docs/data_provenance.md`](docs/data
   scale landmarks rather than reference calibration) is deferred future
   work — see `docs/deep_learning.md` §10.
 - Real-world validation is a small, targeted case study (see
-  `docs/error_analysis.md`), not exhaustive coverage of all gauge types
+  `docs/real_world_case_study.md`), not exhaustive coverage of all gauge types
   and conditions.
-- - **Dual-scale gauges** (two concentric scales in different units on one
+- **Dual-scale gauges** (two concentric scales in different units on one
   dial) are not represented in training data and cause both classical and
   DL systems to independently misread — a specific, real-world-validated
   finding, see `docs/real_world_case_study.md`.

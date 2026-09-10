@@ -103,36 +103,11 @@ cases) deferred to the full Section 15 error analysis rather than
 investigated individually now.
 
 ---
-## DL vs. Classical CV Baseline — Final Comparison
+## Deep learning investigation
 
-All rows use the identical 61-image held-out validation subset (edge-filtered,
-matching the classical pipeline's known operating range), except where noted.
-
-| Method | Within-tolerance rate (±5%) | Mean reading error (% of scale) |
-|---|---|---|
-| Classical CV (Hough Transform) | **80.3%** | **4.82%** |
-| DL v1 — flattened coordinate regression | 9.0%* | 38.9%* |
-| DL v2 — heatmap-based decoder | 46.5%* | 12.09%* |
-| DL v3 — crop-staged, skip connection, combined loss | 54.1% | 7.28% |
-| DL v4 — v3 + 3-block unfreeze, differential LR | 47.5% | 8.88% |
-
-*Evaluated on the full 200-image validation set (not yet restricted to the
-61-image fair subset at that stage of the project); directionally
-comparable, not precisely so. v3 and v4 are the fair, apples-to-apples
-comparison against the classical baseline.
-
-**Conclusion:** Deep learning substantially improved after correctly
-diagnosing and fixing spatial-information loss (flatten → heatmap) and
-full-scene localization difficulty (crop staging), reducing mean reading
-error from 38.9% to 7.28%. A final experiment testing increased backbone
-adaptation (more unfrozen layers, differential learning rates) did not
-close the remaining gap — validation loss improved while downstream
-reading accuracy slightly regressed, suggesting the model was fitting
-heatmap shape more precisely without improving the specific ambiguous
-cases (likely scale-min/max, which visually resemble ordinary tick marks)
-that drive most reading error. Classical CV remains the stronger,
-production-ready system for this project's scope: 80.3% vs. 54.1%
-within-tolerance, 4.82% vs. 7.28% mean error. RetroRead retains the
-classical pipeline as the production candidate; the DL architecture is
-documented as a promising research direction (see Future Improvements)
-rather than deployed as an inferior model.
+The DL architecture search (nine models, YOLO pose, the tip refiner, and
+the final production ensemble) is documented in full in
+`docs/deep_learning.md`, with the complete scannable experiment list in
+`docs/experiment_master_table.md`. Not duplicated here to avoid the two
+documents drifting out of sync as that investigation progressed well
+beyond an early four-model comparison.

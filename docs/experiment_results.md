@@ -1,6 +1,11 @@
-# All Experiments — MLflow Export
+# All Experiments ï¿½ MLflow Export
 
 Auto-generated from MLflow tracking data. Regenerate with `uv run python scripts/reporting/export_experiment_summary.py` after any new experiment. Full interactive tracking (artifacts, overlay images, per-run comparison) is available locally via `uv run mlflow ui` after reproducing the data setup -- see docs/data_provenance.md
+
+**This is the raw, unfiltered MLflow export** â€” every tracked run,
+including duplicates from re-running scripts during iterative debugging.
+For the curated, narrative version (why each experiment was run, what was
+decided), see `docs/experiment_master_table.md`.
 
 ## retroread_classical_baseline (18 runs)
 

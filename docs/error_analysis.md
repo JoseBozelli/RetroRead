@@ -2,6 +2,15 @@
 
 Based on Experiment 06's full-pipeline results (265 candidates), cross-referenced with Experiment 04's per-stage detection results.
 
+> **Note on the numbers below:** this analysis was performed on Experiment
+> 06 (265 candidates, train split) — before the train/val evaluation bug
+> was found and corrected in Experiment 06b (61 candidates, val split,
+> 80.3% / 4.82%, used everywhere else in this project). The qualitative
+> findings here (failure categories, the bimodal error distribution, the
+> wrong-line root cause) are independent of that correction and still
+> hold. For the authoritative accuracy figures, see
+> `docs/experiment_master_table.md`.
+
 ## Failure categories
 
 | Category | Count | % |

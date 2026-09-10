@@ -70,10 +70,24 @@ any cleaning/deduplication steps applied.
    - `data/raw/Aalborg/` (containing the numbered folders `1 Training videos/` through `5 Data from run on raw videos/`)
 3. Verify checksums match the values recorded above.
 4. Run `uv sync` to install exact locked dependencies.
-5. Run `scripts/build_aalborg_clean.py` to regenerate the processed Aalborg dataset and manifest.
+5. **Required for the classical baseline and DL experiments:** run
+   `scripts/data_prep/build_yolo_pose_dataset.py` to build the cropped
+   YOLO-format training set used by Experiments 30 onward.
+6. **Optional, secondary:** run `scripts/build_aalborg_clean.py` to
+   regenerate the processed Aalborg dataset and manifest. Aalborg is
+   **not** used for the primary real-world validation (see
+   `docs/real_world_case_study.md` for why) — it's only relevant if
+   reproducing the line-drawing style-transfer note mentioned there.
+7. For the exact sequence of experiment scripts to reproduce every
+   reported number, see `docs/experiment_master_table.md`.
+
+**Note on real-world validation images:** the five photographs used in
+`docs/real_world_case_study.md` are sourced independently online (not
+from a licensed dataset) and are deliberately **not committed to this
+repository** — see `.gitignore`. Reproducing that specific case study
+requires sourcing comparable images yourself; the methodology, not the
+exact images, is what's meant to be reproducible there.
 
 **Note:** automated download via the Kaggle API is a possible future
 improvement (would require a Kaggle API key, stored in `.env`, not
 committed) — out of scope for the current MVP.
-
----
